@@ -121,3 +121,13 @@ def update_readme():
 
     readme_content = f"""# 📈 Bitcoin Price Tracker
     최근 10회 USD / KRW 가격 변동 (비트코인 1개 기준)"""
+
+if __name__ == "__main__":
+    data = fetch_api(usd, kor)
+    print("Fetched data:", data)  # Debug log
+
+    if data:  # Only proceed if fetch was successful
+        update_history(data)
+        update_readme()
+    else:
+        print("[ERROR] 데이터 수집 실패로 업데이트를 건너뜁니다.", file=sys.stderr)
