@@ -77,8 +77,8 @@ def update_history(fetched_object):
 
 def update_readme():
     """
-    history.txt 를 바탕으로 README.md 를 업데이트
-    usd, krw 순서대로 (stacked) 10개의 'last' 값을 바탕으로 pixel chart 생성
+    history.txt를 바탕으로 README.md를 ASCII 선 그래프로 업데이트
+    각 포인트는 '*'로 표시, 기울기는 '/' '\' 또는 '_'로 연결
     """
     if not os.path.exists(HISTORY_PATH):
         print("[ERROR] history.txt 파일이 없습니다.", file=sys.stderr)
@@ -95,56 +95,60 @@ def update_readme():
     krw_prices = [item["KRW"] for item in history]
     timestamps = [item["timestamp"] for item in history]
 
-    def normalize(values, height=8):
+    def make_ascii_line_chart(values, height=8):
+        """
+        Create an ASCII line chart from numeric values.
+        '*' marks actual data points.
+        '/' and '\' show slopes, '_' shows flat movement.
+        """
         min_v, max_v = min(values), max(values)
         if max_v == min_v:
-            return [height // 2] * len(values)
-        return [int((v - min_v) / (max_v - min_v) * (height - 1)) for v in values]
+            levels = [height // 2] * len(values)
+        else:
+            levels = [int((v - min_v) / (max_v - min_v) * (height - 1)) for v in values]
 
-    usd_levels = normalize(usd_prices)
-    krw_levels = normalize(krw_prices)
+        # Create empty grid (top row = highest value)
+        grid = [[" " for _ in range(len(values))] for _ in range(height)]
 
-    chart_lines = []
-    max_height = 8
-    for h in reversed(range(max_height)):
-        usd_line = ''.join("█" if lvl >= h else " " for lvl in usd_levels)
-        krw_line = ''.join("█" if lvl >= h else " " for lvl in krw_levels)
-        chart_lines.append(f"USD {usd_line}  {h}")
-        chart_lines.append(f"KRW {krw_line}  {h}")
+        for i, lvl in enumerate(levels):
+            row = height - 1 - lvl
+            grid[row][i] = "*"
 
-    chart_str = "\n".join(chart_lines)
+            if i > 0:
+                prev_lvl = levels[i - 1]
+                if lvl > prev_lvl:  # going up
+                    for y in range(height - 1 - prev_lvl - 1, row, -1):
+                        grid[y][i - 1] = "/"
+                elif lvl < prev_lvl:  # going down
+                    for y in range(row + 1, height - 1 - prev_lvl):
+                        grid[y][i - 1] = "\\"
+                else:  # flat
+                    grid[row][i - 1] = "_"
+
+        return "\n".join("".join(r) for r in grid)
+
+    usd_chart = make_ascii_line_chart(usd_prices)
+    krw_chart = make_ascii_line_chart(krw_prices)
+
     price_labels = "\n".join(f"{t}: USD {u:,.2f} | KRW {k:,.0f}"
                              for t, u, k in zip(timestamps, usd_prices, krw_prices))
 
     KST = timezone(timedelta(hours=9))
     now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 
-    readme_content = f"""
-╔══════════════════════════════════════════════════════════════╗
-║                    🚀 BITCOIN PRICE TRACKER 🚀                ║
-╚══════════════════════════════════════════════════════════════╝
-
-💰 최근 10회 USD / KRW 가격 변동 (비트코인 1개 기준)
-
-┌─────────────────── 📊 PRICE CHART ───────────────────┐
-{chart_str}
-└─────────────────────────────────────────────────────┘
-
-📋 가격 기록:
-═══════════════
-{price_labels}
-
-🕐 업데이트 시간: {now_str} (KST)
-
-═══════════════════════════════════════════════════════════════
-💡 Tip: 가격은 실시간으로 변동됩니다. 투자에 참고하세요!
-═══════════════════════════════════════════════════════════════
+    readme_content = f"""# 📈 Bitcoin Price Tracker (ASCII Style)
+    ## USD 가격 변동 
+    {usd_chart}
+    ## KRW 가격 변동
+    {krw_chart}
+    📋 가격 기록:
+    {price_labels}
+    
+🕐 업데이트 시간 : {now_str} (KST)
 """
 
-    # Write to README.md
     with open(README_PATH, "w", encoding="utf-8") as f:
         f.write(readme_content)
-
 
 if __name__ == "__main__":
     data = fetch_api(usd, kor)
