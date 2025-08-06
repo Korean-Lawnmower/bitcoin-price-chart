@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta, timezone
 import json
 import sys
+import shutil
 
 # API 주소
 URL = 'https://blockchain.info/ticker'
@@ -62,18 +63,20 @@ def update_history(fetched_object):
             try:
                 history = json.load(f)
             except json.JSONDecodeError:
-                print("[WARNING] history.txt 파싱 실패, 새로 생성합니다.", file=sys.stderr)
+                print("[ERROR] history.txt 파싱 실패 — 기존 파일 백업 후 새로 생성합니다.", file=sys.stderr)
+                shutil.copy(HISTORY_PATH, HISTORY_PATH + ".bak")
                 history = []
 
-    # Append new record
     history.append(fetched_object)
 
-    # Keep only last 10
     if len(history) > 10:
         history = history[-10:]
 
-    with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+    tmp_path = HISTORY_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
+
+    os.replace(tmp_path, HISTORY_PATH)
 
 def update_readme():
     """
